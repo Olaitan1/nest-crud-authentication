@@ -12,7 +12,7 @@ import {JwtModule} from "@nestjs/jwt";
             host: 'localhost',
             port: 3306,
             username: 'nest-crudAuth',
-            password: '',
+            password: 'Oselegend1.',
             database: 'nest_crudAuth',
             entities: [User],
             synchronize: true,

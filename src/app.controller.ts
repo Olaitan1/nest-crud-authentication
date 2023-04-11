@@ -1,4 +1,4 @@
-import {BadRequestException, Body, Controller, Delete, Get, Patch, Post, Req, Res, UnauthorizedException} from '@nestjs/common';
+import {BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, Res, UnauthorizedException} from '@nestjs/common';
 import {AppService} from './app.service';
 import * as bcrypt from 'bcrypt';
 import {JwtService} from "@nestjs/jwt";
@@ -28,7 +28,9 @@ export class AppController {
 
         delete user.password;
 
-        return user;
+      return {
+        message: `User created successfully with email '${ user.email }'`,
+        };
     }
 
     @Post('login')
@@ -57,26 +59,37 @@ export class AppController {
         };
     }
 
-    @Get('user')
-    async user(@Req() request: Request) {
-        try {
-            const cookie = request.cookies['jwt'];
+     @Get()
+  async getAllUsers() {
+    const users = await this.appService.findAll();
+    return users.map(user => {
+      delete user.password;
+      return user;
+    });
+  }
 
-            const data = await this.jwtService.verifyAsync(cookie);
-
-            if (!data) {
-                throw new UnauthorizedException();
-            }
-
-            const user = await this.appService.findOne({id: data['id']});
-
-            const {password, ...result} = user;
-
-            return result;
-        } catch (e) {
-            throw new UnauthorizedException();
-        }
-    }
+  @Patch(':id')
+async updateUser(
+  @Param('id') id: number,
+  @Body('name') name: string,
+  @Body('email') email: string,
+  @Body('password') password: string,
+  )
+  {
+    const user = await this.appService.findOne({ where: { id } });
+  const hashedPassword = password ? await bcrypt.hash(password, 12) : user.password;
+  const updatedUser = await this.appService.update(id, {
+    name,
+    email,
+    password: hashedPassword,
+    id:user.id // use the same value for the 'id' field
+  });
+  delete updatedUser.password;
+    return {
+      message: `User with email '${ updatedUser.email }' updated successfully`,
+      updatedUser
+    };
+}
 
     @Post('logout')
     async logout(@Res({passthrough: true}) response: Response) {
@@ -86,56 +99,27 @@ export class AppController {
             message: 'success'
         }
     }
-    // @Patch('user')
-    // async updateUser(
-    //     @Req() request: Request,
-    //     @Body('name') name: string,
-    //     @Body('email') email: string,
-    //     @Body('password') password: string
-    // ) {
-    //     try {
-    //         const cookie = request.cookies['jwt'];
+    
+    @Delete('delete/:id')
+    async deleteUser(@Req() request: Request, @Param('id') id: number) {
+        try {
+            const cookie = request.cookies['jwt'];
 
-    //         const data = await this.jwtService.verifyAsync(cookie);
+            const data = await this.jwtService.verifyAsync(cookie);
 
-    //         if (!data) {
-    //             throw new UnauthorizedException();
-    //         }
+            if (!data) {
+                throw new UnauthorizedException();
+            }
 
-    //         const hashedPassword = await bcrypt.hash(password, 12);
+            const deletedUser = await this.appService.delete(data['id']);
 
-    //         const updatedUser = await this.appService.update(data['id'], {
-    //           name,
-    //           email,
-    //           password: hashedPassword,
-    //           id: data['id']
-    //         });
+            const {password: _, ...result} = deletedUser;
 
-    //         const {password: _, ...result} = updatedUser;
-
-    //         return result;
-    //     } catch (e) {
-    //         throw new UnauthorizedException();
-    //     }
-    // }
-    // @Delete('user')
-    // async deleteUser(@Req() request: Request) {
-    //     try {
-    //         const cookie = request.cookies['jwt'];
-
-    //         const data = await this.jwtService.verifyAsync(cookie);
-
-    //         if (!data) {
-    //             throw new UnauthorizedException();
-    //         }
-
-    //         const deletedUser = await this.appService.delete(data['id']);
-
-    //         const {password: _, ...result} = deletedUser;
-
-    //         return result;
-    //     } catch (e) {
-    //         throw new UnauthorizedException();
-    //     }
-    // }
+          return {
+            message:`User with email ${ deletedUser.email } deleted successfully`
+          };
+        } catch (e) {
+            throw new UnauthorizedException();
+        }
+    }
 }
